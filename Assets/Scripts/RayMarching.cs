@@ -5,206 +5,224 @@ using System.Collections.Generic;
 [RequireComponent(typeof(Camera))]
 public class RayMarching : MonoBehaviour
 {
-	[SerializeField]
-	private bool
-		updateNoise = false;
-	[SerializeField]
-	private bool
-		renderLight = false;
-	[SerializeField]
-	private float
-		noiseStrength = 1f;
-	[SerializeField]
-	private int
-		blurPasses = 0;
-	[SerializeField]
-	private int
-		downscale = 2;
-	[SerializeField]
-	private LayerMask
-		volumeLayer;
-	[SerializeField]
-	private Light
-		sunLight;
-	[SerializeField]
-	private Shader
-		noiseShader;
-	[SerializeField]
-	private Shader
-		compositeShader;
-	[SerializeField]
-	private Shader
-		renderFrontDepthShader;
-	[SerializeField]
-	private Shader
-		renderBackDepthShader;
-	[SerializeField]
-	private Shader
-		rayMarchShader;
-	[SerializeField]
-	private Vector4
-		scale = Vector4.one;
-	[SerializeField]
-	private Vector4
-		octaves = Vector4.one;
-	[SerializeField]
-	private Vector4
-		clipDimensions;
-	[SerializeField]
-	private int
-		volumeTexWidth = 4096;
-	[SerializeField]
-	public Material
-		pixelBlitMaterial;
-	private int _slices = 8;
-	private Material _rayMarchMaterial;
-	private Material _compositeMaterial;
-	private Camera _ppCamera;
-	private RenderTexture _noiseBuffer;
-	
-	private void GenerateGPUNoiseBuffer()
-	{
-		var noiseMaterial = new Material(noiseShader);
-		noiseMaterial.SetFloat("_Slices", _slices);
-		noiseMaterial.SetFloat("_Strength", noiseStrength);
-		noiseMaterial.SetVector("_Scale", scale);
-		noiseMaterial.SetVector("_Octaves", octaves);
-		noiseMaterial.SetVector("_ClipDims", clipDimensions);
+    [SerializeField]
+    private bool
+        updateNoise = false;
+    [SerializeField]
+    private bool
+        renderLight = false;
+    [SerializeField]
+    private float
+        noiseStrength = 1f;
+    [SerializeField]
+    private int
+        blurPasses = 0;
+    [SerializeField]
+    private int
+        downscale = 2;
+    [SerializeField]
+    private LayerMask
+        volumeLayer;
+    [SerializeField]
+    private Light
+        sunLight;
+    [SerializeField]
+    private Shader
+        noiseShader;
+    [SerializeField]
+    private Shader
+        compositeShader;
+    [SerializeField]
+    private Shader
+        renderFrontDepthShader;
+    [SerializeField]
+    private Shader
+        renderBackDepthShader;
+    [SerializeField]
+    private Shader
+        rayMarchShader;
+    [SerializeField]
+    private Vector4
+        scale = Vector4.one;
+    [SerializeField]
+    private Vector4
+        octaves = Vector4.one;
+    [SerializeField]
+    private Vector4
+        clipDimensions;
+    [SerializeField]
+    private int
+        volumeTexWidth = 4096;
+    [SerializeField]
+    public Material
+        pixelBlitMaterial;
+    private int _slices = 8;
+    private Material _rayMarchMaterial;
+    private Material _compositeMaterial;
+    private Camera _ppCamera;
+    private RenderTexture _noiseBuffer;
+    
+    private void GenerateGPUNoiseBuffer()
+    {
+        var noiseMaterial = new Material(noiseShader);
+        noiseMaterial.SetFloat("_Slices", _slices);
+        noiseMaterial.SetFloat("_Strength", noiseStrength);
+        noiseMaterial.SetVector("_Scale", scale);
+        noiseMaterial.SetVector("_Octaves", octaves);
+        noiseMaterial.SetVector("_ClipDims", clipDimensions);
 
-		if(sunLight != null)
-		{
-			noiseMaterial.SetVector("_LightDir", sunLight.transform.forward);
-		}
+        if(sunLight != null)
+        {
+            noiseMaterial.SetVector("_LightDir", sunLight.transform.forward);
+        }
 
-		if(_noiseBuffer == null)
-		{
-			_noiseBuffer = RenderTexture.GetTemporary(volumeTexWidth, volumeTexWidth, 0, RenderTextureFormat.ARGB32);
-			_noiseBuffer.filterMode = FilterMode.Trilinear;
-			_noiseBuffer.generateMips = false;
-			_noiseBuffer.hideFlags = HideFlags.HideAndDontSave;
-			_noiseBuffer.wrapMode = TextureWrapMode.Repeat;
-		}
+        if(_noiseBuffer == null)
+        {
+            _noiseBuffer = RenderTexture.GetTemporary(volumeTexWidth, volumeTexWidth, 0, RenderTextureFormat.ARGB32);
+            _noiseBuffer.filterMode = FilterMode.Trilinear;
+            _noiseBuffer.generateMips = false;
+            _noiseBuffer.hideFlags = HideFlags.HideAndDontSave;
+            _noiseBuffer.wrapMode = TextureWrapMode.Repeat;
+        }
 
-		Graphics.Blit(_noiseBuffer, _noiseBuffer, noiseMaterial, 0);
-		for(int i = 0; i < blurPasses; i++)
-		{
-			var temp = RenderTexture.GetTemporary(volumeTexWidth, volumeTexWidth, 0, RenderTextureFormat.ARGB32);
-			Graphics.Blit(_noiseBuffer, temp, noiseMaterial, 2);
-			Graphics.Blit(temp, _noiseBuffer, noiseMaterial, 3);
-			Graphics.Blit(_noiseBuffer, temp, noiseMaterial, 4);
-			Graphics.Blit(temp, _noiseBuffer);
-			RenderTexture.ReleaseTemporary(temp);
-		}
+        Graphics.Blit(_noiseBuffer, _noiseBuffer, noiseMaterial, 0);
+        for(int i = 0; i < blurPasses; i++)
+        {
+            var temp = RenderTexture.GetTemporary(volumeTexWidth, volumeTexWidth, 0, RenderTextureFormat.ARGB32);
+            Graphics.Blit(_noiseBuffer, temp, noiseMaterial, 2);
+            Graphics.Blit(temp, _noiseBuffer, noiseMaterial, 3);
+            Graphics.Blit(_noiseBuffer, temp, noiseMaterial, 4);
+            Graphics.Blit(temp, _noiseBuffer);
+            RenderTexture.ReleaseTemporary(temp);
+        }
 
-		if(renderLight)
-		{
-			Graphics.Blit(_noiseBuffer, _noiseBuffer, noiseMaterial, 1);
-		}
-		
-		Destroy(noiseMaterial);
-	}
+        if(renderLight)
+        {
+            Graphics.Blit(_noiseBuffer, _noiseBuffer, noiseMaterial, 1);
+        }
+        
+        Destroy(noiseMaterial);
+    }
 
-	private void BlitParticles(Vector3 part)
-	{
-		GL.Clear(false, true, Color.clear);
-		var texDimensions = volumeTexWidth / _slices;
+    private void BlitParticles(Vector3 part)
+    {
+        GL.Clear(false, true, Color.clear);
+        var texDimensions = volumeTexWidth / _slices;
 
-		GL.PushMatrix();
-		pixelBlitMaterial.SetPass(0);
-		GL.LoadPixelMatrix(0, volumeTexWidth, 0, volumeTexWidth);
-		GL.Begin(GL.QUADS);
+        GL.PushMatrix();
+        pixelBlitMaterial.SetPass(0);
+        GL.LoadPixelMatrix(0, volumeTexWidth, 0, volumeTexWidth);
+        GL.Begin(GL.QUADS);
 
-		var widthOff = 1f;
-		var heightOff = 1f;
+        var widthOff = 1f;
+        var heightOff = 1f;
  
-		var pos = part + Vector3.one * 0.5f;
-		var x = pos.x * texDimensions + Mathf.Floor((pos.z * _slices % 1) * _slices) * texDimensions;
-		var y = volumeTexWidth - ((pos.y * texDimensions) + (Mathf.Floor(pos.z * _slices)) * texDimensions);
+        var pos = part + Vector3.one * 0.5f;
+        var x = pos.x * texDimensions + Mathf.Floor((pos.z * _slices % 1) * _slices) * texDimensions;
+        var y = volumeTexWidth - ((pos.y * texDimensions) + (Mathf.Floor(pos.z * _slices)) * texDimensions);
 
-		GL.TexCoord2(0, 0);
-		GL.Vertex3(x, y, 0);
-		GL.Color(Color.red);
+        GL.TexCoord2(0, 0);
+        GL.Vertex3(x, y, 0);
+        GL.Color(Color.red);
 
-		GL.TexCoord2(0, 1);
-		GL.Vertex3(x, y + heightOff, 0);
-		GL.Color(Color.red);
+        GL.TexCoord2(0, 1);
+        GL.Vertex3(x, y + heightOff, 0);
+        GL.Color(Color.red);
 
-		GL.TexCoord2(1, 1);
-		GL.Vertex3(x + widthOff, y + heightOff, 0);
-		GL.Color(Color.red);
+        GL.TexCoord2(1, 1);
+        GL.Vertex3(x + widthOff, y + heightOff, 0);
+        GL.Color(Color.red);
 
-		GL.TexCoord2(1, 0);
-		GL.Vertex3(x + widthOff, y, 0);
-		GL.Color(Color.red);
+        GL.TexCoord2(1, 0);
+        GL.Vertex3(x + widthOff, y, 0);
+        GL.Color(Color.red);
 
-		GL.End();
-		GL.PopMatrix();
-	}
+        GL.End();
+        GL.PopMatrix();
+    }
 
-	private void Awake()
-	{
-		_rayMarchMaterial = new Material(rayMarchShader);
-		_compositeMaterial = new Material(compositeShader);
-	}
+    private void Awake()
+    {
+        _rayMarchMaterial = new Material(rayMarchShader);
+        _compositeMaterial = new Material(compositeShader);
 
-	private void Start()
-	{
-		GenerateGPUNoiseBuffer();
-	}
+        var c = GetComponent<Camera>();
+        if (c.depthTextureMode == DepthTextureMode.None)
+        {
+            c.depthTextureMode = DepthTextureMode.Depth;
+        }
+    }
 
-	private void Update()
-	{
-		if(updateNoise)
-		{
-			GenerateGPUNoiseBuffer();
-		}
-	}
+    private void Start()
+    {
+        GenerateGPUNoiseBuffer();
+    }
 
-	private void OnRenderImage(RenderTexture source, RenderTexture destination)
-	{
-		var width = source.width / downscale;
-		var height = source.height / downscale;
+    private void Update()
+    {
+        if(updateNoise)
+        {
+            GenerateGPUNoiseBuffer();
+        }
+    }
 
-		if(_ppCamera == null)
-		{
-			var go = new GameObject("PPCamera");
-			_ppCamera = go.AddComponent<Camera>();
-			_ppCamera.enabled = false;
-		}
+    private void OnRenderImage(RenderTexture source, RenderTexture destination)
+    {
+        {
+            var c = GetComponent<Camera>();
+            Matrix4x4 view = c.worldToCameraMatrix;
+            Matrix4x4 proj = c.projectionMatrix;
+            proj[2, 0] = proj[2, 0] * 0.5f + proj[3, 0] * 0.5f;
+            proj[2, 1] = proj[2, 1] * 0.5f + proj[3, 1] * 0.5f;
+            proj[2, 2] = proj[2, 2] * 0.5f + proj[3, 2] * 0.5f;
+            proj[2, 3] = proj[2, 3] * 0.5f + proj[3, 3] * 0.5f;
+            Matrix4x4 viewproj = proj * view;
+            Shader.SetGlobalMatrix("InvMVP", viewproj.inverse);
+        }
+        var width = source.width / downscale;
+        var height = source.height / downscale;
 
-		_ppCamera.CopyFrom(camera);
-		_ppCamera.clearFlags = CameraClearFlags.SolidColor;
-		_ppCamera.backgroundColor = Color.white;
-		_ppCamera.cullingMask = volumeLayer;
+        if(_ppCamera == null)
+        {
+            var go = new GameObject("PPCamera");
+            _ppCamera = go.AddComponent<Camera>();
+            _ppCamera.enabled = false;
+        }
 
-		var frontDepth = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGBFloat);
-		var backDepth = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGBFloat);
+        _ppCamera.CopyFrom(GetComponent<Camera>());
+        _ppCamera.clearFlags = CameraClearFlags.SolidColor;
+        _ppCamera.backgroundColor = Color.white;
+        _ppCamera.cullingMask = volumeLayer;
+        _ppCamera.depthTextureMode = DepthTextureMode.None;
 
-		_rayMarchMaterial.SetFloat("_Dimensions", _slices);
-		_rayMarchMaterial.SetVector("_LightDir", sunLight.transform.forward);
-		_rayMarchMaterial.SetVector("_LightPos", sunLight.transform.position);
+        var frontDepth = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.RFloat);
+        var backDepth = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.RFloat);
 
-		var volumeTarget = RenderTexture.GetTemporary(width, height, 0);
+        _rayMarchMaterial.SetFloat("_Dimensions", _slices);
+        _rayMarchMaterial.SetVector("_LightDir", sunLight.transform.forward);
+        _rayMarchMaterial.SetVector("_LightPos", sunLight.transform.position);
 
-		// Render depths
-		_ppCamera.targetTexture = frontDepth;
-		_ppCamera.RenderWithShader(renderFrontDepthShader, "RenderType");
-		_ppCamera.targetTexture = backDepth;
-		_ppCamera.RenderWithShader(renderBackDepthShader, "RenderType");
+        var volumeTarget = RenderTexture.GetTemporary(width, height, 0);
 
-		// Render volume
-		_rayMarchMaterial.SetTexture("_FrontTex", frontDepth);
-		_rayMarchMaterial.SetTexture("_BackTex", backDepth);
-		_rayMarchMaterial.SetTexture("_MainTex", _noiseBuffer);
+        // Render depths
+        _ppCamera.targetTexture = frontDepth;
+        _ppCamera.RenderWithShader(renderFrontDepthShader, "RenderType");
+        _ppCamera.targetTexture = backDepth;
+        _ppCamera.RenderWithShader(renderBackDepthShader, "RenderType");
 
-		Graphics.Blit(null, volumeTarget, _rayMarchMaterial);
+        // Render volume
+        _rayMarchMaterial.SetTexture("_FrontTex", frontDepth);
+        _rayMarchMaterial.SetTexture("_BackTex", backDepth);
+        _rayMarchMaterial.SetTexture("_MainTex", _noiseBuffer);
 
-		//Composite
-		_compositeMaterial.SetTexture("_BlendTex", volumeTarget);
-		Graphics.Blit(source, destination, _compositeMaterial);
+        Graphics.Blit(null, volumeTarget, _rayMarchMaterial);
 
-		RenderTexture.ReleaseTemporary(volumeTarget);
-		RenderTexture.ReleaseTemporary(frontDepth);
-		RenderTexture.ReleaseTemporary(backDepth);
-	}
+        //Composite
+        _compositeMaterial.SetTexture("_BlendTex", volumeTarget);
+        Graphics.Blit(source, destination, _compositeMaterial);
+
+        RenderTexture.ReleaseTemporary(volumeTarget);
+        RenderTexture.ReleaseTemporary(frontDepth);
+        RenderTexture.ReleaseTemporary(backDepth);
+    }
 }

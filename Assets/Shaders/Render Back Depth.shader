@@ -6,31 +6,29 @@ Shader "Hidden/Ray Marching/Render Back Depth" {
 
 		struct v2f {
 			float4 pos : POSITION;
-			float3 localPos : TEXCOORD0;
+			float4 spos : TEXCOORD0;
 		};
 
 		v2f vert(appdata_base v) 
 		{
 			v2f o;
-			o.pos = mul(UNITY_MATRIX_MVP, v.vertex);
-			o.localPos = v.vertex.xyz + 0.5;
+			o.pos = o.spos =mul(UNITY_MATRIX_MVP, v.vertex);
 			return o;
 		}
 
-		half4 frag(v2f i) : COLOR 
+		float frag(v2f i) : SV_Target
 		{ 
-			return float4(i.localPos, 1);
+			return i.spos.z / i.spos.w;
 		}
-		
 	ENDCG
 
 	Subshader 
-	{ 	
+	{
 		Tags {"RenderType"="Volume"}
 		Fog { Mode Off }
-		
-		Pass 
-		{	
+
+		Pass
+		{
 			Cull Front
 			CGPROGRAM
 			#pragma vertex vert
@@ -38,4 +36,5 @@ Shader "Hidden/Ray Marching/Render Back Depth" {
 			ENDCG
 		}
 	}
+	Fallback Off
 }
